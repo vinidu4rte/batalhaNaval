@@ -13,8 +13,8 @@
 #define NOME_ARQUIVO_2 "tabu_2.txt"
 #define NOME_ARQUIVO_SAIDA_INIC "inicializacao.txt"
 #define NOME_ARQUIVO_SAIDA_VERIF "validacao_tabuleiros.txt"
-#define TAMANHO_NOME_ARQUIVO_ENTRADA_INIC 10
-#define TAMANHO_NOME_ARQUIVO_SAIDA_INIC 17
+#define NOME_ARQUIVO_SAIDA_RESUMO "resultado.txt"
+#define NOME_ARQUIVO_SAIDA_ESTATISTICAS "estatisticas.txt"
 
 typedef struct {
   char diretorioEntrada[500];
@@ -51,6 +51,7 @@ typedef struct {
   int compativel;
   int qtdNaviosDestruidos;
   int perdeu;
+  int naviosOrdemAlf[18];
 }tTabuleiro;
 
 typedef struct {
@@ -112,7 +113,7 @@ int RetornaPosicaoYNavio (tNavio navio);
 int RetornaPosicaoXNavio (tNavio navio);
 int VerificaPosicaoAtacada (tTabuleiro tabuleiro, int posicaoY, int posicaoX);
 tTabuleiro RetornaTabuleiroAposAtaque (tTabuleiro tabuleiro, char posicaoY, int posicaoYAtaque, int posicaoXAtaque, int numJogada);
-void RealizaJogo (tJogo jogo, tJogador jogador1, tJogador jogador2);
+void RealizaJogo (tJogo jogo, tJogador jogador1, tJogador jogador2, char *diretorioSaida);
 tJogo RealizaJogada (tJogo jogo ,tJogador jogadorAtacante, tJogador jogadorAtacado, int numJogada);
 int VerificaJogadorPerdedor (tTabuleiro jogador1, tTabuleiro jogador2);
 int VerificaSeAmbosJogadoresPerderam (tTabuleiro jogador1, tTabuleiro jogador2);
@@ -121,11 +122,18 @@ tTabuleiro AtribuiResultadoJogadaAtaque (tTabuleiro tabuleiro, int id, int numJo
 tTabuleiro RealizaJogadaDefesa (tJogador jogadorAtacante, tJogador jogadorAtacado, int numJogada);
 tTabuleiro RealizaJogadaAtaque (tJogador jogadorAtacante, tJogador jogadorAtacado, int numJogada);
 int RetornaIdNavio (tNavio navio);
-int RetornaResultadoJogada (tTabuleiro tabuleiro, int numJogada);
+int RetornaResultadoJogadaDefesa (tTabuleiro tabuleiro, int numJogada);
 int JogadaEhValida (char jogadaY, int jogadaX, tJogador jogador, int qtdJogadasFeitas);
 tTabuleiro IncrementaQtdNaviosDestruidos (tTabuleiro tabuleiro);
 tTabuleiro DeclaraTabuleiroPerdedor (tTabuleiro tabuleiro);
 void CriaArquivoResumoJogo (char *diretorio_saida, tJogador jogador1, tJogador jogador2, tTabuleiro tabuleiro1, tTabuleiro tabuleiro2);
+void CriaArquivoResumoPartida (char *diretorioSaida, char *nome_arquivo_saida,tJogador jogador1, tJogador jogador2, int qtdJogadas, int perdedor);
+int RetornaResultadoJogadaAtaque (tTabuleiro tabuleiro, int qtdJogadas);
+int RetornaPosicaoNavioNaLista (tTabuleiro tabuleiro, int id);
+int RetornaId (tTabuleiro tabuleiro, int posicao);
+int ComparaNomesNavio (tNavio navio1, tNavio navio2);
+int RetornaQtdNaviosTotal (tTabuleiro tabuleiro);
+void CriaArquivoEstatisticaPartida (char *diretorioSaida, char *nome_arquivo_saida,tJogador jogador1, tJogador jogador2, int qtdJogadas, int perdedor);
 
 
 int main (int argc, char **argv) {
@@ -155,12 +163,200 @@ int main (int argc, char **argv) {
     jogador2 = InicializaJogador(jogador2, 2, tabuleiro2);
     printf("\n");
     CriaArquivoInicializacao(arquivo1.diretorioSaida, NOME_ARQUIVO_SAIDA_INIC, jogador1, jogador2);
-    RealizaJogo(jogo, jogador1, jogador2);
+    RealizaJogo(jogo, jogador1, jogador2, arquivo1.diretorioSaida);
   }
   return 0;
 }
 
-void RealizaJogo (tJogo jogo, tJogador jogador1, tJogador jogador2) {
+tTabuleiro OrdenaNaviosAlfabeticamente (tTabuleiro tabuleiro, int qtdNaviosTotal, int jogadasFeitas) {
+  int i=0, j=0, k=0, valorAux=0, maiorRodada=0, posicaoMaiorRodada=0;
+  if(qtdNaviosTotal==1) {
+    tabuleiro.naviosOrdemAlf[0] = RetornaIdNavio(tabuleiro.navios[i]);
+    return tabuleiro;
+  }
+
+  for(i=0; i<tabuleiro.qtdNaviosTotal; i++) { // coloca os ids na ordem padrão, agora irá comparar e trocá-los de lugar
+    tabuleiro.naviosOrdemAlf[i] = RetornaIdNavio(tabuleiro.navios[i]);
+  }
+
+  for(i=0; i<tabuleiro.qtdNaviosTotal; i++) {
+    for(j=i+1; j<tabuleiro.qtdNaviosTotal; j++) {
+      if(ComparaNomesNavio(tabuleiro.navios[RetornaPosicaoNavioNaLista(tabuleiro, tabuleiro.naviosOrdemAlf[i])], tabuleiro.navios[RetornaPosicaoNavioNaLista(tabuleiro, tabuleiro.naviosOrdemAlf[j])])==1) {
+        valorAux = tabuleiro.naviosOrdemAlf[i];
+        tabuleiro.naviosOrdemAlf[i] = tabuleiro.naviosOrdemAlf[j];
+        tabuleiro.naviosOrdemAlf[j] = valorAux;
+      }else if(ComparaNomesNavio(tabuleiro.navios[RetornaPosicaoNavioNaLista(tabuleiro, tabuleiro.naviosOrdemAlf[i])], tabuleiro.navios[RetornaPosicaoNavioNaLista(tabuleiro, tabuleiro.naviosOrdemAlf[j])])==0) {
+        for(k=0; k<jogadasFeitas; k++) {
+          if(tabuleiro.resultadoJogadasDefesa[k] == tabuleiro.naviosOrdemAlf[j]) {
+            valorAux = tabuleiro.naviosOrdemAlf[i];
+            tabuleiro.naviosOrdemAlf[i] = tabuleiro.naviosOrdemAlf[j];
+            tabuleiro.naviosOrdemAlf[j] = valorAux;
+            break;
+          }else if(tabuleiro.resultadoJogadasDefesa[k] == tabuleiro.naviosOrdemAlf[i]) break;
+        }
+      }
+    }
+  }
+  return tabuleiro;
+}
+
+int ComparaNomesNavio (tNavio navio1, tNavio navio2) {
+  if(strcmp(navio1.nome, navio2.nome)>0) return 1; // navio 2 vem antes
+  else if(strcmp(navio1.nome, navio2.nome)<0) return 2; // navio 1 vem antes
+  else return 0;
+}
+
+void CriaArquivoEstatisticaPartida (char *diretorioSaida, char *nome_arquivo_saida,tJogador jogador1, tJogador jogador2, int qtdJogadas, int perdedor) {
+  char caminhoSaida[100];
+  FILE * arquivoSaida;
+  int i=0, j=0;
+  int agua=0, tiro=0;
+
+  sprintf(caminhoSaida, "%s/%s", diretorioSaida, nome_arquivo_saida);
+  
+  arquivoSaida = fopen(caminhoSaida, "w");
+  if(!arquivoSaida) {
+    printf("ERRO: Ocorreu um erro ao criar o arquivo (%s).", caminhoSaida);
+    exit(1);
+  }else {
+    for(i=0; i<qtdJogadas; i++) {
+      if(RetornaResultadoJogadaAtaque(jogador1.tabuleiro, i) == 0) agua++;
+      else tiro++;
+    }
+    jogador1.tabuleiro = OrdenaNaviosAlfabeticamente(jogador1.tabuleiro, RetornaQtdNaviosTotal(jogador1.tabuleiro), qtdJogadas);
+    jogador2.tabuleiro = OrdenaNaviosAlfabeticamente(jogador2.tabuleiro, RetornaQtdNaviosTotal(jogador2.tabuleiro), qtdJogadas);
+    fprintf(arquivoSaida, "%s\n", jogador1.nome);
+    fprintf(arquivoSaida, "Tiros Errados: %d\n", agua);
+    fprintf(arquivoSaida, "Tiros Acertados: %d\n", tiro);
+    fprintf(arquivoSaida, "Navios de %s:\n", jogador1.nome);
+    for(i=0; i<RetornaQtdNaviosTotal(jogador1.tabuleiro); i++) {
+      for(j=0; j<qtdJogadas; j++) {
+        if(RetornaResultadoJogadaDefesa(jogador1.tabuleiro, j) == RetornaId(jogador1.tabuleiro, i)) {
+          fprintf(arquivoSaida, "%02d - %s - ID %02d\n", j+1, jogador1.tabuleiro.navios[RetornaPosicaoNavioNaLista(jogador1.tabuleiro, RetornaId(jogador1.tabuleiro, i))].nome, RetornaId(jogador1.tabuleiro, i));
+          break;
+        }
+      }
+    }
+    fprintf(arquivoSaida, "\n");
+    tiro=0;
+    agua=0;
+
+    for(i=0; i<qtdJogadas; i++) {
+      if(RetornaResultadoJogadaAtaque(jogador2.tabuleiro, i) == 0) agua++;
+      else tiro++;
+    }
+    fprintf(arquivoSaida, "%s\n", jogador2.nome);
+    fprintf(arquivoSaida, "Tiros Errados: %d\n", agua);
+    fprintf(arquivoSaida, "Tiros Acertados: %d\n", tiro);
+    fprintf(arquivoSaida, "Navios de %s:\n", jogador2.nome);
+    for(i=0; i<RetornaQtdNaviosTotal(jogador2.tabuleiro); i++) {
+      for(j=0; j<qtdJogadas; j++) {
+        if(RetornaResultadoJogadaDefesa(jogador2.tabuleiro, j) == RetornaId(jogador2.tabuleiro, i)) {
+          fprintf(arquivoSaida, "%02d - %s - ID %02d\n", j+1, jogador2.tabuleiro.navios[RetornaPosicaoNavioNaLista(jogador2.tabuleiro, RetornaId(jogador2.tabuleiro, i))].nome, RetornaId(jogador2.tabuleiro, i));
+          break;
+        }
+      }
+    }
+  }
+  fclose(arquivoSaida);
+}
+
+int RetornaId (tTabuleiro tabuleiro, int posicao) {
+  return tabuleiro.naviosOrdemAlf[posicao];
+}
+
+int RetornaQtdNaviosTotal (tTabuleiro tabuleiro) {
+  return tabuleiro.qtdNaviosTotal;
+}
+
+void CriaArquivoResumoPartida (char *diretorioSaida, char *nome_arquivo_saida,tJogador jogador1, tJogador jogador2, int qtdJogadas, int perdedor) {
+  char caminhoSaida[100];
+  FILE * arquivoSaida;
+  int i=0, j=0;
+
+  sprintf(caminhoSaida, "%s/%s", diretorioSaida, nome_arquivo_saida);
+  
+  arquivoSaida = fopen(caminhoSaida, "w");
+  if(!arquivoSaida) {
+    printf("ERRO: Ocorreu um erro ao criar o arquivo (%s).", caminhoSaida);
+    exit(1);
+  }else {
+    fprintf(arquivoSaida, "%s\n", jogador1.nome);
+    for(i=0; i<qtdJogadas; i++) {
+      fprintf(arquivoSaida, "%c%d - ", jogador1.jogadasY[i], jogador1.jogadasX[i]);
+      if(RetornaResultadoJogadaAtaque(jogador1.tabuleiro, i) != 0) {
+        j = RetornaPosicaoNavioNaLista(jogador2.tabuleiro, RetornaResultadoJogadaAtaque(jogador1.tabuleiro, i));
+        fprintf(arquivoSaida, "Tiro - %s - ID %02d\n", jogador2.tabuleiro.navios[j].nome, RetornaResultadoJogadaAtaque(jogador1.tabuleiro, i));
+      }else {
+        fprintf(arquivoSaida, "Agua\n");
+      }
+    }
+    fprintf(arquivoSaida, "\n");
+
+    fprintf(arquivoSaida, "%s\n", jogador2.nome);
+    for(i=0; i<qtdJogadas; i++) {
+      fprintf(arquivoSaida, "%c%d - ", jogador2.jogadasY[i], jogador2.jogadasX[i]);
+      if(RetornaResultadoJogadaAtaque(jogador2.tabuleiro, i) != 0) {
+        j = RetornaPosicaoNavioNaLista(jogador1.tabuleiro, RetornaResultadoJogadaAtaque(jogador2.tabuleiro, i));
+        fprintf(arquivoSaida, "Tiro - %s - ID %02d\n", jogador1.tabuleiro.navios[j].nome, RetornaResultadoJogadaAtaque(jogador2.tabuleiro, i));
+      }else {
+        fprintf(arquivoSaida, "Agua\n");
+      }
+    }
+    fprintf(arquivoSaida, "\n");
+
+    if(perdedor==1) fprintf(arquivoSaida, "Vencedor: %s", jogador2.nome);
+    else if(perdedor==2) fprintf(arquivoSaida, "Vencedor: %s", jogador1.nome);
+    else if(perdedor==-1) fprintf(arquivoSaida, "Empate");
+  }
+  fclose(arquivoSaida);
+}
+
+int RetornaPosicaoNavioNaLista (tTabuleiro tabuleiro, int id) {
+  int m=0;
+  for(m=0; m<tabuleiro.qtdNaviosTotal; m++) {
+    if(id == RetornaIdNavio(tabuleiro.navios[m])) {
+      return m;
+    }
+  }
+  return -1;
+}
+
+int RetornaResultadoJogadaAtaque (tTabuleiro tabuleiro, int qtdJogadas) {
+  return tabuleiro.resultadoJogadasAtaque[qtdJogadas];
+}
+
+void CriaArquivoSaidaVerificacaoTabu (char *diretorio_saida, char *nomeArquivoTabu1, char *nomeArquivoTabu2, tTabuleiro tabu1, tTabuleiro tabu2) {
+  int y=0, x=0;
+  char linha[40];
+  FILE * arquivoSaida;
+  char caminhoSaida[1000];
+
+  sprintf(caminhoSaida, "%s/%s", diretorio_saida, NOME_ARQUIVO_SAIDA_VERIF);
+
+  arquivoSaida = fopen(caminhoSaida, "w");
+  if(!arquivoSaida) {
+    printf("ERRO: Ocorreu um erro ao criar o arquivo (%s).", caminhoSaida);
+    exit(1);
+  }else {
+    fprintf(arquivoSaida, "%s;", nomeArquivoTabu1);
+    if(tabu1.valido) fprintf(arquivoSaida, "valido\n");
+    else fprintf(arquivoSaida, "invalido\n");
+
+    fprintf(arquivoSaida, "%s;", nomeArquivoTabu2);
+    if(tabu2.valido) fprintf(arquivoSaida, "valido");
+    else fprintf(arquivoSaida, "invalido");
+
+    if(tabu1.valido && tabu2.valido) {
+      if(tabu1.compativel && tabu2.compativel) fprintf(arquivoSaida, "\nTabuleiros compativeis entre si");
+      else fprintf(arquivoSaida, "\nTabuleiros incompativeis entre si");
+    }
+  }
+  fclose(arquivoSaida);
+}
+
+
+void RealizaJogo (tJogo jogo, tJogador jogador1, tJogador jogador2, char *diretorioSaida) {
   int qtdJogadasFeitas1=0, qtdJogadasFeitas2=0, perdedor=0;
   while(VerificaSeAlgumJogadorPerdeu(jogador1.tabuleiro, jogador2.tabuleiro)==0) {
     jogador1 = RecebeJogada(jogador1, qtdJogadasFeitas1);
@@ -179,6 +375,7 @@ void RealizaJogo (tJogo jogo, tJogador jogador1, tJogador jogador2) {
   }
  
   if(VerificaSeAmbosJogadoresPerderam(jogador1.tabuleiro, jogador2.tabuleiro)) {
+    perdedor=-1;
     printf("Empate\n");
   }else {
     perdedor = VerificaJogadorPerdedor(jogador1.tabuleiro, jogador2.tabuleiro);
@@ -186,7 +383,8 @@ void RealizaJogo (tJogo jogo, tJogador jogador1, tJogador jogador2) {
     else if(perdedor==2) printf("Vencedor: %s\n", jogador1.nome);
   }
   //agora deve gerar o arquivo de saida, resultado e estatística
-  
+  CriaArquivoResumoPartida(diretorioSaida, NOME_ARQUIVO_SAIDA_RESUMO, jogador1, jogador2, qtdJogadasFeitas1, perdedor);
+  CriaArquivoEstatisticaPartida(diretorioSaida, NOME_ARQUIVO_SAIDA_ESTATISTICAS, jogador1, jogador2, qtdJogadasFeitas1, perdedor);
 }
 
 void ImprimeTabuleiroCodificado (tJogador jogador, tTabuleiro tabuleiro, int qtdJogadas) {
@@ -264,7 +462,7 @@ tTabuleiro RealizaJogadaAtaque (tJogador jogadorAtacante, tJogador jogadorAtacad
   int rtn=0;
   rtn = VerificaPosicaoAtacada(jogadorAtacado.tabuleiro, jogadorAtacante.jogadasYNum[numJogada], jogadorAtacante.jogadasX[numJogada]);
   if(rtn==1){
-    jogadorAtacante.tabuleiro = AtribuiResultadoJogadaAtaque(jogadorAtacante.tabuleiro, RetornaResultadoJogada(jogadorAtacado.tabuleiro, numJogada), numJogada);
+    jogadorAtacante.tabuleiro = AtribuiResultadoJogadaAtaque(jogadorAtacante.tabuleiro, RetornaResultadoJogadaDefesa(jogadorAtacado.tabuleiro, numJogada), numJogada);
   }else if(rtn==0) {
     jogadorAtacante.tabuleiro = AtribuiResultadoJogadaAtaque(jogadorAtacante.tabuleiro, 0, numJogada);
     printf("%c%d:Agua\n\n", jogadorAtacante.jogadasY[numJogada], jogadorAtacante.jogadasX[numJogada]);
@@ -309,6 +507,7 @@ for(i=0; i<tabuleiro.qtdNaviosTotal; i++) {
           tabuleiro = IncrementaQtdNaviosDestruidos(tabuleiro);
           if(tabuleiro.qtdNaviosDestruidos == tabuleiro.qtdNaviosTotal) {
             tabuleiro = DeclaraTabuleiroPerdedor(tabuleiro);
+            return tabuleiro;
           }
         }else {
           printf("%c%d:Tiro!\n\n", posicaoY, posicaoXAtaque);
@@ -329,6 +528,7 @@ for(i=0; i<tabuleiro.qtdNaviosTotal; i++) {
             tabuleiro = IncrementaQtdNaviosDestruidos(tabuleiro);
             if(tabuleiro.qtdNaviosDestruidos == tabuleiro.qtdNaviosTotal) {
               tabuleiro = DeclaraTabuleiroPerdedor(tabuleiro);
+              return tabuleiro;
             }
           }else {
             printf("%c%d:Tiro!\n\n", posicaoY, posicaoXAtaque);
@@ -342,7 +542,7 @@ for(i=0; i<tabuleiro.qtdNaviosTotal; i++) {
   return tabuleiro;
 }
 
-int RetornaResultadoJogada (tTabuleiro tabuleiro, int numJogada) {
+int RetornaResultadoJogadaDefesa (tTabuleiro tabuleiro, int numJogada) {
   int resultado=0;
   resultado = tabuleiro.resultadoJogadasDefesa[numJogada];
   return resultado;
@@ -412,35 +612,6 @@ int RetornaPosicaoXNavio (tNavio navio) {
 int RetornaOrientacaoNavio (tNavio navio) {
   if(navio.orientacao==1) return 1;
   else return 0;
-}
-
-void CriaArquivoSaidaVerificacaoTabu (char *diretorio_saida, char *nomeArquivoTabu1, char *nomeArquivoTabu2, tTabuleiro tabu1, tTabuleiro tabu2) {
-  int y=0, x=0;
-  char linha[40];
-  FILE * arquivoSaida;
-  char caminhoSaida[1000];
-
-  sprintf(caminhoSaida, "%s/%s", diretorio_saida, NOME_ARQUIVO_SAIDA_VERIF);
-
-  arquivoSaida = fopen(caminhoSaida, "w");
-  if(!arquivoSaida) {
-    printf("ERRO: Ocorreu um erro ao criar o arquivo (%s).", caminhoSaida);
-    exit(1);
-  }else {
-    fprintf(arquivoSaida, "%s;", nomeArquivoTabu1);
-    if(tabu1.valido) fprintf(arquivoSaida, "valido\n");
-    else fprintf(arquivoSaida, "invalido\n");
-
-    fprintf(arquivoSaida, "%s;", nomeArquivoTabu2);
-    if(tabu2.valido) fprintf(arquivoSaida, "valido");
-    else fprintf(arquivoSaida, "invalido");
-
-    if(tabu1.valido && tabu2.valido) {
-      if(tabu1.compativel && tabu2.compativel) fprintf(arquivoSaida, "\nTabuleiros compativeis entre si");
-      else fprintf(arquivoSaida, "\nTabuleiros incompativeis entre si");
-    }
-  }
-  fclose(arquivoSaida);
 }
 
 void CriaArquivoInicializacao (char *diretorioSaida, char *nome_arquivo_saida,tJogador jogador1, tJogador jogador2) {
@@ -608,6 +779,7 @@ tNavio LeNavio (char *conteudoArq) {
       }
     }
   }
+  navio.qtdTamAtacado=0;
   return navio;
 }
 
