@@ -45,9 +45,12 @@ typedef struct {
   int qtdNaviosDestroyer;
   int qtdNaviosTotal;
   tNavio navios[100];
-  int resultadoJogadas[100]; // id navio e 0 agua
+  int resultadoJogadasAtaque[100]; // id navio ou 0 = agua
+  int resultadoJogadasDefesa[100]; // id navio ou 0 = agua
   int valido;
   int compativel;
+  int qtdNaviosDestruidos;
+  int perdeu;
 }tTabuleiro;
 
 typedef struct {
@@ -58,7 +61,6 @@ typedef struct {
   char jogadasY[100];
   int jogadasYNum[100];
   int jogadasX[100];
-  int venceu;
 }tJogador;
 
 typedef struct {
@@ -79,8 +81,8 @@ tJogador LeNomeJogador(tJogador jogador);
 tJogador InicializaJogador (tJogador jogador, int id, tTabuleiro tabuleiro);
 int VerificaNaviosColados (tTabuleiro tabuleiro, tNavio navio,int posicaoY, int posicaoX, int qtdCasasCriadas);
 tJogo RotinaReiniciarJogo (tJogo jogo);
-void ImprimeTabuleiroDecodificado (tTabuleiro tabuleiro);
-void ImprimeTabuleiroCodificado (tTabuleiro tabuleiro);
+void ImprimeTabuleiroDecodificado (tJogador jogador, tTabuleiro tabuleiro);
+void ImprimeTabuleiroCodificado (tJogador jogador, tTabuleiro tabuleiro, int qtdJogadas);
 tTabuleiro InvalidaTabuleiro (tTabuleiro tabuleiro);
 tTabuleiro ValidaTabuleiro (tTabuleiro tabuleiro);
 tTabuleiro AdicionaQtdNavios (tTabuleiro tabuleiro);
@@ -100,7 +102,6 @@ tTabuleiro TornaTabuCompativel (tTabuleiro tabu);
 tTabuleiro TornaTabuIncompativel (tTabuleiro tabu);
 tNavio RetornaNavioDestruido (tNavio navio);
 int VerificarTabuleirosValidosECompartiveis(tTabuleiro tabuleiro1, tTabuleiro tabuleiro2);
-int VerificaSeAmbosJogadoresVenceram (tJogador jogador1, tJogador jogador2);
 tNavio RetornaNavioParteDestruida (tNavio navio);
 int PegaJogadaLetraETransfEmNum (char jogadaY);
 tJogador RecebeJogada (tJogador jogador, int qtdJogadasFeitas);
@@ -110,13 +111,21 @@ int RetornaOrientacaoNavio (tNavio navio);
 int RetornaPosicaoYNavio (tNavio navio);
 int RetornaPosicaoXNavio (tNavio navio);
 int VerificaPosicaoAtacada (tTabuleiro tabuleiro, int posicaoY, int posicaoX);
-tTabuleiro RetornaTabuleiroAposAtaque (tTabuleiro tabuleiro, int posicaoYAtaque, int posicaoXAtaque, int numJogada);
+tTabuleiro RetornaTabuleiroAposAtaque (tTabuleiro tabuleiro, char posicaoY, int posicaoYAtaque, int posicaoXAtaque, int numJogada);
 void RealizaJogo (tJogo jogo, tJogador jogador1, tJogador jogador2);
 tJogo RealizaJogada (tJogo jogo ,tJogador jogadorAtacante, tJogador jogadorAtacado, int numJogada);
-int VerificaJogadorVencedor (tJogador jogador1, tJogador jogador2);
-int VerificaSeAmbosJogadoresVenceram (tJogador jogador1, tJogador jogador2);
-int VerificaSeAlgumJogadorVenceu (tJogador jogador1, tJogador jogador2);
-tTabuleiro RetornaResultadoJogada (tTabuleiro tabuleiro, int id, int numJogada);
+int VerificaJogadorPerdedor (tTabuleiro jogador1, tTabuleiro jogador2);
+int VerificaSeAmbosJogadoresPerderam (tTabuleiro jogador1, tTabuleiro jogador2);
+int VerificaSeAlgumJogadorPerdeu (tTabuleiro jogador1, tTabuleiro jogador2);
+tTabuleiro AtribuiResultadoJogadaAtaque (tTabuleiro tabuleiro, int id, int numJogada);
+tTabuleiro RealizaJogadaDefesa (tJogador jogadorAtacante, tJogador jogadorAtacado, int numJogada);
+tTabuleiro RealizaJogadaAtaque (tJogador jogadorAtacante, tJogador jogadorAtacado, int numJogada);
+int RetornaIdNavio (tNavio navio);
+int RetornaResultadoJogada (tTabuleiro tabuleiro, int numJogada);
+int JogadaEhValida (char jogadaY, int jogadaX, tJogador jogador, int qtdJogadasFeitas);
+tTabuleiro IncrementaQtdNaviosDestruidos (tTabuleiro tabuleiro);
+tTabuleiro DeclaraTabuleiroPerdedor (tTabuleiro tabuleiro);
+void CriaArquivoResumoJogo (char *diretorio_saida, tJogador jogador1, tJogador jogador2, tTabuleiro tabuleiro1, tTabuleiro tabuleiro2);
 
 
 int main (int argc, char **argv) {
@@ -144,132 +153,141 @@ int main (int argc, char **argv) {
   if(VerificarTabuleirosValidosECompartiveis(tabuleiro1, tabuleiro2)) {
     jogador1 = InicializaJogador(jogador1, 1, tabuleiro1);
     jogador2 = InicializaJogador(jogador2, 2, tabuleiro2);
+    printf("\n");
     CriaArquivoInicializacao(arquivo1.diretorioSaida, NOME_ARQUIVO_SAIDA_INIC, jogador1, jogador2);
     RealizaJogo(jogo, jogador1, jogador2);
   }
   return 0;
 }
 
-int VerificarTabuleirosValidosECompartiveis(tTabuleiro tabuleiro1, tTabuleiro tabuleiro2) {
-  if(tabuleiro1.valido && tabuleiro2.valido && tabuleiro1.compativel && tabuleiro2.compativel) return 1;
-  else return 0;
-}
+void RealizaJogo (tJogo jogo, tJogador jogador1, tJogador jogador2) {
+  int qtdJogadasFeitas1=0, qtdJogadasFeitas2=0, perdedor=0;
+  while(VerificaSeAlgumJogadorPerdeu(jogador1.tabuleiro, jogador2.tabuleiro)==0) {
+    jogador1 = RecebeJogada(jogador1, qtdJogadasFeitas1);
+    jogador2.tabuleiro = RealizaJogadaDefesa(jogador1, jogador2, qtdJogadasFeitas1);
+    jogador1.tabuleiro = RealizaJogadaAtaque(jogador1, jogador2, qtdJogadasFeitas1);
+    qtdJogadasFeitas1++;
+    printf("Tabuleiro atual de %s apos a jogada de %s\n",jogador2.nome, jogador1.nome);
+    ImprimeTabuleiroCodificado(jogador1, jogador2.tabuleiro, qtdJogadasFeitas1);
 
-tTabuleiro TornaTabuIncompativel (tTabuleiro tabu) {
-  tabu.compativel=0;
-  return tabu;
-}
-
-tTabuleiro TornaTabuCompativel (tTabuleiro tabu) {
-  tabu.compativel=1;
-  return tabu;
-}
-
-int VerificaCompatibilidadeTabuleiros (tTabuleiro tabu1, tTabuleiro tabu2) {
-  if(tabu1.qtdNaviosSubmarine == tabu2.qtdNaviosSubmarine
-  && tabu1.qtdNaviosCarrier == tabu2.qtdNaviosCarrier
-  && tabu1.qtdNaviosBattleship == tabu2.qtdNaviosBattleship
-  && tabu1.qtdNaviosCruiser == tabu2.qtdNaviosCruiser
-  && tabu1.qtdNaviosDestroyer == tabu2.qtdNaviosDestroyer 
-  && tabu1.qtdNaviosTotal == tabu2.qtdNaviosTotal 
-  && tabu1.qtdNaviosTotal>0 && tabu2.qtdNaviosTotal>0) {
-    return 1;
-  }else {
-    return 0;
+    jogador2 = RecebeJogada(jogador2, qtdJogadasFeitas2);
+    jogador1.tabuleiro = RealizaJogadaDefesa(jogador2, jogador1, qtdJogadasFeitas2);
+    jogador2.tabuleiro = RealizaJogadaAtaque(jogador2, jogador1, qtdJogadasFeitas2);
+    qtdJogadasFeitas2++;
+    printf("Tabuleiro atual de %s apos a jogada de %s\n",jogador1.nome, jogador2.nome);
+    ImprimeTabuleiroCodificado(jogador2, jogador1.tabuleiro, qtdJogadasFeitas2);
   }
+ 
+  if(VerificaSeAmbosJogadoresPerderam(jogador1.tabuleiro, jogador2.tabuleiro)) {
+    printf("Empate\n");
+  }else {
+    perdedor = VerificaJogadorPerdedor(jogador1.tabuleiro, jogador2.tabuleiro);
+    if(perdedor==1) printf("Vencedor: %s\n", jogador2.nome);
+    else if(perdedor==2) printf("Vencedor: %s\n", jogador1.nome);
+  }
+  //agora deve gerar o arquivo de saida, resultado e estatística
+  
 }
 
-int JogadaEhValida (char jogadaY, int jogadaX, tJogador jogador, int qtdJogadasFeitas) {
-  int i=0, j=0;
+void ImprimeTabuleiroCodificado (tJogador jogador, tTabuleiro tabuleiro, int qtdJogadas) {
+   int i=0, j=0, k=0, printou=0;
+   int x=0, y=0;
 
-  if(jogadaY >= 'a' && jogadaY <= 'j'  && jogadaX >=1 && jogadaX <=10) {
-    for(i=0; i<qtdJogadasFeitas; i++) {
-      if(jogador.jogadasY[i] == jogadaY && jogador.jogadasX[i] == jogadaX) {
-        printf("O jogador %d está repetindo a jogada atual com a jogada %d.\n", jogador.id, i+1);
-        return 0;
+  for(i=0; i<TAM_Y_TABU; i++) {
+    for(j=0; j<TAM_X_TABU; j++) {
+      for(k=0; k<qtdJogadas; k++) {
+        if(jogador.jogadasYNum[k]-1 == i && jogador.jogadasX[k]-1 == j) {
+          if(j+1==TAM_X_TABU) {
+            printf("%c\n", tabuleiro.posicoes[i][j]);
+            printou=1;
+            break;
+          }else printf("%c ", tabuleiro.posicoes[i][j]);
+          printou=1;
+          break;
+        }
+      }
+      if(printou) printou=0;
+      else {
+        if(j+1==TAM_X_TABU) printf(".\n");
+        else printf(". ");
       }
     }
   }
-  return 1;
+  printf("\n");
 }
 
-void RealizaJogo (tJogo jogo, tJogador jogador1, tJogador jogador2) {
-  int qtdJogadasFeitas1=0, qtdJogadasFeitas2=0, vencedor=0;
-  while(!(VerificaSeAlgumJogadorVenceu(jogador1, jogador2))) {
-    jogador1 = RecebeJogada(jogador1, qtdJogadasFeitas1);
-    jogo = RealizaJogada(jogo, jogador1, jogador2, qtdJogadasFeitas1);
-    qtdJogadasFeitas1++;
 
-    jogador2 = RecebeJogada(jogador2, qtdJogadasFeitas2);
-    jogo = RealizaJogada(jogo, jogador2, jogador1, qtdJogadasFeitas2);
-    qtdJogadasFeitas2++;
+tJogador RecebeJogada (tJogador jogador, int qtdJogadasFeitas) {
+  int rtn=0, jogadaX=0, i=0, j=0, temErro=0;
+  char jogadaY;
+  char jogada[10];
+  printf("Jogada de %s:\n\n", jogador.nome);
+  while(1) {
+    scanf("%[^\n]%*c", jogada);
+    rtn = sscanf(jogada, "%c%d", &jogadaY, &jogadaX);
+
+    if(JogadaEhValida(jogadaY, jogadaX, jogador, qtdJogadasFeitas) && rtn == 2) {
+      if(jogadaX<10) {
+        if(jogada[2] == '\0') break;
+        else {
+        printf("%s:Jogada invalida! Jogue novamente %s:\n\n", jogada, jogador.nome);
+        continue;
+        }
+      }else if(jogadaX >= 10) {
+        if(jogada[3] == '\0') break;
+        else {
+          printf("%s:Jogada invalida! Jogue novamente %s:\n\n", jogada, jogador.nome);
+          continue;
+        }
+      }
+    }else {
+      printf("%s:Jogada invalida! Jogue novamente %s:\n\n", jogada, jogador.nome);
+      continue;
+    }
   }
-  vencedor = VerificaJogadorVencedor(jogador1, jogador2);
-  if(vencedor==1) {
-    jogador2 = RecebeJogada(jogador2, qtdJogadasFeitas2);
-    jogo = RealizaJogada(jogo, jogador2, jogador1, qtdJogadasFeitas2);
-    qtdJogadasFeitas2++;
-  }else if(vencedor==2) {
-    jogador1 = RecebeJogada(jogador1, qtdJogadasFeitas1);
-    jogo = RealizaJogada(jogo, jogador1, jogador2, qtdJogadasFeitas1);
-    qtdJogadasFeitas1++;
-  }
-  
-  if(VerificaSeAmbosJogadoresVenceram(jogador1, jogador2)) {
-    printf("Empate\n");
-  }else {
-    if(vencedor==1) printf("Vencedor: %s\n", jogador1.nome);
-    else if(vencedor==2) printf("Vencedor: %s\n", jogador2.nome);
-  }
-  //agora deve gerar o arquivo de saida, resultado e estatística
+  jogador.jogadasX[qtdJogadasFeitas] = jogadaX;
+  jogador.jogadasY[qtdJogadasFeitas] = jogadaY;
+  jogador.jogadasYNum[qtdJogadasFeitas] = PegaJogadaLetraETransfEmNum(jogadaY);
+  return jogador;
 }
 
-int VerificaSeAmbosJogadoresVenceram (tJogador jogador1, tJogador jogador2) {
-  if(jogador1.venceu && jogador2.venceu) return 1;
-  else return 0;
-}
-
-int VerificaSeAlgumJogadorVenceu (tJogador jogador1, tJogador jogador2) {
-  if(jogador1.venceu || jogador2.venceu) return 1;
-  else return 0;
-}
-
-int VerificaJogadorVencedor (tJogador jogador1, tJogador jogador2) {
-  if(jogador1.venceu) return 1;
-  else if (jogador2.venceu) return 2;
-}
-
-tJogo RealizaJogada (tJogo jogo, tJogador jogadorAtacante, tJogador jogadorAtacado, int numJogada) {
+tTabuleiro RealizaJogadaDefesa (tJogador jogadorAtacante, tJogador jogadorAtacado, int numJogada) {
   int rtn=0;
   rtn = VerificaPosicaoAtacada(jogadorAtacado.tabuleiro, jogadorAtacante.jogadasYNum[numJogada], jogadorAtacante.jogadasX[numJogada]);
   if(rtn==1) {
-    jogadorAtacado.tabuleiro = RetornaTabuleiroAposAtaque(jogadorAtacado.tabuleiro, jogadorAtacante.jogadasYNum[numJogada], jogadorAtacante.jogadasX[numJogada], numJogada);
-  }else if(rtn==0) {
-    jogadorAtacante.tabuleiro = RetornaResultadoJogada(jogadorAtacante.tabuleiro, 0, numJogada);
-    printf("%c%d:Agua!\n", jogadorAtacante.jogadasY[numJogada], jogadorAtacante.jogadasX[numJogada]);
+    jogadorAtacado.tabuleiro = RetornaTabuleiroAposAtaque(jogadorAtacado.tabuleiro, jogadorAtacante.jogadasY[numJogada], jogadorAtacante.jogadasYNum[numJogada], jogadorAtacante.jogadasX[numJogada], numJogada);
   }
-  if(jogadorAtacante.id == 1) {
-    jogo.jogador1 = jogadorAtacante;
-    jogo.jogador2 = jogadorAtacado;
-  }else if(jogadorAtacante.id==2) {
-    jogo.jogador2 = jogadorAtacante;
-    jogo.jogador1 = jogadorAtacado;
-  }
-  return jogo;
+  return jogadorAtacado.tabuleiro;
 }
 
-tTabuleiro RetornaResultadoJogada (tTabuleiro tabuleiro, int id, int numJogada) {
-  tabuleiro.resultadoJogadas[numJogada] = id;
+tTabuleiro RealizaJogadaAtaque (tJogador jogadorAtacante, tJogador jogadorAtacado, int numJogada) {
+  int rtn=0;
+  rtn = VerificaPosicaoAtacada(jogadorAtacado.tabuleiro, jogadorAtacante.jogadasYNum[numJogada], jogadorAtacante.jogadasX[numJogada]);
+  if(rtn==1){
+    jogadorAtacante.tabuleiro = AtribuiResultadoJogadaAtaque(jogadorAtacante.tabuleiro, RetornaResultadoJogada(jogadorAtacado.tabuleiro, numJogada), numJogada);
+  }else if(rtn==0) {
+    jogadorAtacante.tabuleiro = AtribuiResultadoJogadaAtaque(jogadorAtacante.tabuleiro, 0, numJogada);
+    printf("%c%d:Agua\n\n", jogadorAtacante.jogadasY[numJogada], jogadorAtacante.jogadasX[numJogada]);
+  }
+  return jogadorAtacante.tabuleiro;
+}
+
+tTabuleiro AtribuiResultadoJogadaDefesa (tTabuleiro tabuleiro, int id, int numJogada) {
+  tabuleiro.resultadoJogadasDefesa[numJogada] = id;
   return tabuleiro;
 }
 
-int RetornaIdNavio (tNavio navio) {
-  return navio.id;
+tTabuleiro IncrementaQtdNaviosDestruidos (tTabuleiro tabuleiro) {
+  tabuleiro.qtdNaviosDestruidos++;
+  return tabuleiro;
 }
 
+tTabuleiro DeclaraTabuleiroPerdedor (tTabuleiro tabuleiro) {
+  tabuleiro.perdeu=1;
+  return tabuleiro;
+}
 
-tTabuleiro RetornaTabuleiroAposAtaque (tTabuleiro tabuleiro, int posicaoYAtaque, int posicaoXAtaque, int numJogada) {
-
+tTabuleiro RetornaTabuleiroAposAtaque (tTabuleiro tabuleiro, char posicaoY, int posicaoYAtaque, int posicaoXAtaque, int numJogada) {
 int i=0, j=0, m=0, n=0, x=0, y=0;
 int navioX=0, navioY=0;
 
@@ -280,36 +298,79 @@ for(i=0; i<tabuleiro.qtdNaviosTotal; i++) {
   navioX = RetornaPosicaoXNavio(tabuleiro.navios[i])-1;
   navioY = RetornaPosicaoYNavio(tabuleiro.navios[i])-1;
   if(RetornaOrientacaoNavio(tabuleiro.navios[i])) { //horizontal
+    if(navioY == y) {
     for(j=0; j<RetornaTamanhoNavio(tabuleiro.navios[i]); j++) {
-      if(navioY == y && navioX+n == x) {
+      if(navioX+n == x) {
         tabuleiro.navios[i] = RetornaNavioParteDestruida(tabuleiro.navios[i]);
-        tabuleiro = RetornaResultadoJogada(tabuleiro, RetornaIdNavio(tabuleiro.navios[i]), numJogada);
+        tabuleiro = AtribuiResultadoJogadaDefesa(tabuleiro, RetornaIdNavio(tabuleiro.navios[i]), numJogada);
         if(VerificaSeNavioFoiDestruido(tabuleiro.navios[i])) {
           tabuleiro.navios[i] = RetornaNavioDestruido(tabuleiro.navios[i]);
-          printf("%c%d:Afundou %s\n", posicaoYAtaque, posicaoXAtaque, tabuleiro.navios[i].nome);
+          printf("%c%d:Afundou %s\n\n", posicaoY, posicaoXAtaque, tabuleiro.navios[i].nome);
+          tabuleiro = IncrementaQtdNaviosDestruidos(tabuleiro);
+          if(tabuleiro.qtdNaviosDestruidos == tabuleiro.qtdNaviosTotal) {
+            tabuleiro = DeclaraTabuleiroPerdedor(tabuleiro);
+          }
         }else {
-          printf("%c%d:Tiro!\n", posicaoYAtaque, posicaoXAtaque);
+          printf("%c%d:Tiro!\n\n", posicaoY, posicaoXAtaque);
         }
       }
       n++; 
     }
+    }else continue;
   }else if(RetornaOrientacaoNavio(tabuleiro.navios[i]) == 0) { // vertical
-    for(j=0; j<RetornaTamanhoNavio(tabuleiro.navios[i]); j++) {
-      if(navioY+n == y && navioX == x) {
-        tabuleiro.navios[i] = RetornaNavioParteDestruida(tabuleiro.navios[i]);
-        tabuleiro = RetornaResultadoJogada(tabuleiro, RetornaIdNavio(tabuleiro.navios[i]), numJogada);
-        if(VerificaSeNavioFoiDestruido(tabuleiro.navios[i])) {
-          tabuleiro.navios[i] = RetornaNavioDestruido(tabuleiro.navios[i]);
-          printf("%c%d:Afundou %s\n", posicaoYAtaque, posicaoXAtaque, tabuleiro.navios[i].nome);
-        }else {
-          printf("%c%d:Tiro!\n", posicaoYAtaque, posicaoXAtaque);
+    if(navioX == x) {
+      for(j=0; j<RetornaTamanhoNavio(tabuleiro.navios[i]); j++) {
+        if(navioY+n == y) {
+          tabuleiro.navios[i] = RetornaNavioParteDestruida(tabuleiro.navios[i]);
+          tabuleiro = AtribuiResultadoJogadaDefesa(tabuleiro, RetornaIdNavio(tabuleiro.navios[i]), numJogada);
+          if(VerificaSeNavioFoiDestruido(tabuleiro.navios[i])) {
+            tabuleiro.navios[i] = RetornaNavioDestruido(tabuleiro.navios[i]);
+            printf("%c%d:Afundou %s\n\n", posicaoY, posicaoXAtaque, tabuleiro.navios[i].nome);
+            tabuleiro = IncrementaQtdNaviosDestruidos(tabuleiro);
+            if(tabuleiro.qtdNaviosDestruidos == tabuleiro.qtdNaviosTotal) {
+              tabuleiro = DeclaraTabuleiroPerdedor(tabuleiro);
+            }
+          }else {
+            printf("%c%d:Tiro!\n\n", posicaoY, posicaoXAtaque);
+          }
         }
+        n++; 
       }
-      n++; 
-    }
+    }else continue;
   }
 }
   return tabuleiro;
+}
+
+int RetornaResultadoJogada (tTabuleiro tabuleiro, int numJogada) {
+  int resultado=0;
+  resultado = tabuleiro.resultadoJogadasDefesa[numJogada];
+  return resultado;
+}
+
+tTabuleiro AtribuiResultadoJogadaAtaque (tTabuleiro tabuleiro, int id, int numJogada) {
+  tabuleiro.resultadoJogadasAtaque[numJogada] = id;
+  return tabuleiro;
+}
+
+int RetornaIdNavio (tNavio navio) {
+  return navio.id;
+}
+
+int VerificaSeAmbosJogadoresPerderam (tTabuleiro jogador1, tTabuleiro jogador2) {
+  if(jogador1.perdeu && jogador2.perdeu) return 1;
+  else return 0;
+}
+
+int VerificaSeAlgumJogadorPerdeu (tTabuleiro jogador1, tTabuleiro jogador2) {
+  if(jogador1.perdeu || jogador2.perdeu) return 1;
+  else return 0;
+}
+
+int VerificaJogadorPerdedor (tTabuleiro jogador1, tTabuleiro jogador2) {
+  if(jogador1.perdeu==1) return 1;
+  else if (jogador2.perdeu==1) return 2;
+  else return -1;
 }
 
 int VerificaPosicaoAtacada (tTabuleiro tabuleiro, int posicaoY, int posicaoX) {
@@ -351,21 +412,6 @@ int RetornaPosicaoXNavio (tNavio navio) {
 int RetornaOrientacaoNavio (tNavio navio) {
   if(navio.orientacao==1) return 1;
   else return 0;
-}
-
-tJogador RecebeJogada (tJogador jogador, int qtdJogadasFeitas) {
-  int rtn=0, jogadaX=0, i=0, j=0;
-  char jogadaY;
-  printf("Jogada de %s:\n\n", jogador.nome);
-  rtn = scanf("%c%d\n", &jogadaY, &jogadaX);
-  while(!(rtn==2 && JogadaEhValida (jogadaY, jogadaX, jogador, qtdJogadasFeitas))) {
-    printf("%c%d: Jogava inválida, jogue novamente %s.\n", jogadaY, jogadaX, jogador.nome);
-    rtn = scanf("%c%d\n", &jogadaY, &jogadaX);
-  }
-  jogador.jogadasX[qtdJogadasFeitas] = jogadaX;
-  jogador.jogadasY[qtdJogadasFeitas] = jogadaY;
-  jogador.jogadasYNum[qtdJogadasFeitas] = PegaJogadaLetraETransfEmNum(jogadaY);
-  return jogador;
 }
 
 void CriaArquivoSaidaVerificacaoTabu (char *diretorio_saida, char *nomeArquivoTabu1, char *nomeArquivoTabu2, tTabuleiro tabu1, tTabuleiro tabu2) {
@@ -486,7 +532,7 @@ tArquivoInicializacao LeituraDeArquivo (tArquivoInicializacao arquivoInic, char 
   }else {
     while(1) {
       if(!feof(arquivo)) {
-        if(fscanf(arquivo, "%[^\n]\n", arquivoInic.conteudo[i])==1) {
+        if(fscanf(arquivo, "%[^\n]%*c", arquivoInic.conteudo[i])==1) {
           i++;
           arquivoInic.qtdLinhas++;
         }else {
@@ -524,6 +570,8 @@ tTabuleiro ResetaTabuleiro (tTabuleiro tabuleiro) {
   tabuleiro.qtdNaviosCruiser=0;
   tabuleiro.qtdNaviosSubmarine=0;
   tabuleiro.qtdNaviosDestroyer=0;
+  tabuleiro.qtdNaviosDestruidos=0;
+  tabuleiro.perdeu=0;
 
   return tabuleiro;
 }
@@ -1028,7 +1076,7 @@ tJogador InicializaJogador (tJogador jogador, int id, tTabuleiro tabuleiro) {
 }
 
 tJogador LeNomeJogador(tJogador jogador) {
-  printf("Nome do jogador %d:\n", jogador.id);
+  printf("Nome do Jogador %d:\n", jogador.id);
   scanf("%[^\n]%*c", jogador.nome);
   return jogador;
 }
@@ -1045,7 +1093,7 @@ tTabuleiro ValidaTabuleiro (tTabuleiro tabuleiro) {
   return tabuleiro;
 }
 
-void ImprimeTabuleiroDecodificado (tTabuleiro tabuleiro) {
+void ImprimeTabuleiroDecodificado (tJogador jogador, tTabuleiro tabuleiro) {
   int x=0, y=0;
 
   for(y=0; y<TAM_Y_TABU; y++) {
@@ -1085,4 +1133,47 @@ void TransformaLinhaTabuleiroEmStringFormatada (char *linha, tTabuleiro tabuleir
       i++;
     }
   }
+}
+
+int VerificarTabuleirosValidosECompartiveis(tTabuleiro tabuleiro1, tTabuleiro tabuleiro2) {
+  if(tabuleiro1.valido && tabuleiro2.valido && tabuleiro1.compativel && tabuleiro2.compativel) return 1;
+  else return 0;
+}
+
+tTabuleiro TornaTabuIncompativel (tTabuleiro tabu) {
+  tabu.compativel=0;
+  return tabu;
+}
+
+tTabuleiro TornaTabuCompativel (tTabuleiro tabu) {
+  tabu.compativel=1;
+  return tabu;
+}
+
+int VerificaCompatibilidadeTabuleiros (tTabuleiro tabu1, tTabuleiro tabu2) {
+  if(tabu1.qtdNaviosSubmarine == tabu2.qtdNaviosSubmarine
+  && tabu1.qtdNaviosCarrier == tabu2.qtdNaviosCarrier
+  && tabu1.qtdNaviosBattleship == tabu2.qtdNaviosBattleship
+  && tabu1.qtdNaviosCruiser == tabu2.qtdNaviosCruiser
+  && tabu1.qtdNaviosDestroyer == tabu2.qtdNaviosDestroyer 
+  && tabu1.qtdNaviosTotal == tabu2.qtdNaviosTotal 
+  && tabu1.qtdNaviosTotal>0 && tabu2.qtdNaviosTotal>0) {
+    return 1;
+  }else {
+    return 0;
+  }
+}
+
+int JogadaEhValida (char jogadaY, int jogadaX, tJogador jogador, int qtdJogadasFeitas) {
+  int i=0, j=0;
+
+  if(jogadaY >= 'a' && jogadaY <= 'j'  && jogadaX >= 1 && jogadaX <= 10) {
+    for(i=0; i<qtdJogadasFeitas; i++) {
+      if(jogador.jogadasY[i] == jogadaY && jogador.jogadasX[i] == jogadaX) {
+        //printf("O jogador %d está repetindo a jogada atual com a jogada %d.\n", jogador.id, i+1);
+        return 0;
+      }
+    }
+  }else return 0;
+  return 1;
 }
