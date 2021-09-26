@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #define TAM_X_TABU 10
 #define TAM_Y_TABU 10
@@ -134,6 +135,9 @@ int RetornaId (tTabuleiro tabuleiro, int posicao);
 int ComparaNomesNavio (tNavio navio1, tNavio navio2);
 int RetornaQtdNaviosTotal (tTabuleiro tabuleiro);
 void CriaArquivoEstatisticaPartida (char *diretorioSaida, char *nome_arquivo_saida,tJogador jogador1, tJogador jogador2, int qtdJogadas, int perdedor);
+float CalculaDesvioPadraoJogadas(tJogador jogador, int qtdJogadas);
+float CalculaLocalizacaoMediaXJogadas(tJogador jogador, int qtdJogadas);
+float CalculaLocalizacaoMediaYJogadas(tJogador jogador, int qtdJogadas);
 
 
 int main (int argc, char **argv) {
@@ -141,7 +145,7 @@ int main (int argc, char **argv) {
   tJogador jogador1, jogador2;
   tTabuleiro tabuleiro1, tabuleiro2;
   tArquivoInicializacao arquivo1, arquivo2;
-  
+
   int rtn=0, qtdNavios=0;
   arquivo1 = RotinaLeituraInicializacao(arquivo1, NOME_ARQUIVO_1, argv, argc);
   tabuleiro1 = RotinaLerNaviosValidarEGerarTabuleiro(arquivo1);
@@ -157,7 +161,7 @@ int main (int argc, char **argv) {
     tabuleiro2 = TornaTabuIncompativel(tabuleiro2);
   }
   CriaArquivoSaidaVerificacaoTabu(arquivo1.diretorioSaida, NOME_ARQUIVO_1, NOME_ARQUIVO_2, tabuleiro1, tabuleiro2);
-  
+
   if(VerificarTabuleirosValidosECompartiveis(tabuleiro1, tabuleiro2)) {
     jogador1 = InicializaJogador(jogador1, 1, tabuleiro1);
     jogador2 = InicializaJogador(jogador2, 2, tabuleiro2);
@@ -213,7 +217,7 @@ void CriaArquivoEstatisticaPartida (char *diretorioSaida, char *nome_arquivo_sai
   int agua=0, tiro=0;
 
   sprintf(caminhoSaida, "%s/%s", diretorioSaida, nome_arquivo_saida);
-  
+
   arquivoSaida = fopen(caminhoSaida, "w");
   if(!arquivoSaida) {
     printf("ERRO: Ocorreu um erro ao criar o arquivo (%s).", caminhoSaida);
@@ -228,6 +232,8 @@ void CriaArquivoEstatisticaPartida (char *diretorioSaida, char *nome_arquivo_sai
     fprintf(arquivoSaida, "%s\n", jogador1.nome);
     fprintf(arquivoSaida, "Tiros Errados: %d\n", agua);
     fprintf(arquivoSaida, "Tiros Acertados: %d\n", tiro);
+    fprintf(arquivoSaida, "Localizacao Media: (%.2f,%.2f)\n", CalculaLocalizacaoMediaYJogadas(jogador1, qtdJogadas), CalculaLocalizacaoMediaXJogadas(jogador1, qtdJogadas));
+    fprintf(arquivoSaida, "Desvio Padrao da Localizacao: %.2f\n", CalculaDesvioPadraoJogadas(jogador1, qtdJogadas));
     fprintf(arquivoSaida, "Navios de %s:\n", jogador1.nome);
     for(i=0; i<RetornaQtdNaviosTotal(jogador1.tabuleiro); i++) {
       for(j=0; j<qtdJogadas; j++) {
@@ -248,6 +254,8 @@ void CriaArquivoEstatisticaPartida (char *diretorioSaida, char *nome_arquivo_sai
     fprintf(arquivoSaida, "%s\n", jogador2.nome);
     fprintf(arquivoSaida, "Tiros Errados: %d\n", agua);
     fprintf(arquivoSaida, "Tiros Acertados: %d\n", tiro);
+    fprintf(arquivoSaida, "Localizacao Media: (%.2f,%.2f)\n", CalculaLocalizacaoMediaYJogadas(jogador2, qtdJogadas), CalculaLocalizacaoMediaXJogadas(jogador2, qtdJogadas));
+    fprintf(arquivoSaida, "Desvio Padrao da Localizacao: %.2f\n", CalculaDesvioPadraoJogadas(jogador2, qtdJogadas));
     fprintf(arquivoSaida, "Navios de %s:\n", jogador2.nome);
     for(i=0; i<RetornaQtdNaviosTotal(jogador2.tabuleiro); i++) {
       for(j=0; j<qtdJogadas; j++) {
@@ -259,6 +267,39 @@ void CriaArquivoEstatisticaPartida (char *diretorioSaida, char *nome_arquivo_sai
     }
   }
   fclose(arquivoSaida);
+}
+
+float CalculaDesvioPadraoJogadas(tJogador jogador, int qtdJogadas) {
+  float mediaX=0, mediaY=0;
+  float desvioPadrao=0;
+  int i=0;
+
+  mediaX = CalculaLocalizacaoMediaXJogadas(jogador, qtdJogadas);
+  mediaY = CalculaLocalizacaoMediaYJogadas(jogador, qtdJogadas);
+
+  for(i=0; i<qtdJogadas; i++) {
+    desvioPadrao+=(pow((jogador.jogadasYNum[i]-mediaY),2) + pow((jogador.jogadasX[i]-mediaX),2));
+  }
+  desvioPadrao/=qtdJogadas;
+  return sqrt(desvioPadrao);
+}
+
+float CalculaLocalizacaoMediaXJogadas(tJogador jogador, int qtdJogadas) {
+  int i=0;
+  float soma=0;
+  for(i=0; i<qtdJogadas; i++){
+    soma+=jogador.jogadasX[i];
+  }
+  return (soma/qtdJogadas)/1.0;
+}
+
+float CalculaLocalizacaoMediaYJogadas(tJogador jogador, int qtdJogadas) {
+  int i=0;
+  float soma=0;
+  for(i=0; i<qtdJogadas; i++){
+    soma+=jogador.jogadasYNum[i];
+  }
+  return (soma/qtdJogadas)/1.0;
 }
 
 int RetornaId (tTabuleiro tabuleiro, int posicao) {
@@ -275,7 +316,7 @@ void CriaArquivoResumoPartida (char *diretorioSaida, char *nome_arquivo_saida,tJ
   int i=0, j=0;
 
   sprintf(caminhoSaida, "%s/%s", diretorioSaida, nome_arquivo_saida);
-  
+
   arquivoSaida = fopen(caminhoSaida, "w");
   if(!arquivoSaida) {
     printf("ERRO: Ocorreu um erro ao criar o arquivo (%s).", caminhoSaida);
@@ -373,7 +414,7 @@ void RealizaJogo (tJogo jogo, tJogador jogador1, tJogador jogador2, char *direto
     printf("Tabuleiro atual de %s apos a jogada de %s\n",jogador1.nome, jogador2.nome);
     ImprimeTabuleiroCodificado(jogador2, jogador1.tabuleiro, qtdJogadasFeitas2);
   }
- 
+
   if(VerificaSeAmbosJogadoresPerderam(jogador1.tabuleiro, jogador2.tabuleiro)) {
     perdedor=-1;
     printf("Empate\n");
@@ -513,7 +554,7 @@ for(i=0; i<tabuleiro.qtdNaviosTotal; i++) {
           printf("%c%d:Tiro!\n\n", posicaoY, posicaoXAtaque);
         }
       }
-      n++; 
+      n++;
     }
     }else continue;
   }else if(RetornaOrientacaoNavio(tabuleiro.navios[i]) == 0) { // vertical
@@ -534,7 +575,7 @@ for(i=0; i<tabuleiro.qtdNaviosTotal; i++) {
             printf("%c%d:Tiro!\n\n", posicaoY, posicaoXAtaque);
           }
         }
-        n++; 
+        n++;
       }
     }else continue;
   }
@@ -640,7 +681,7 @@ void CriaArquivoInicializacao (char *diretorioSaida, char *nome_arquivo_saida,tJ
       if(y+1 == TAM_Y_TABU) fprintf(arquivoSaida, "%s", linha);
       else fprintf(arquivoSaida, "%s\n", linha);
     }
-  }              
+  }
   fclose(arquivoSaida);
 }
 
@@ -684,7 +725,7 @@ tArquivoInicializacao RotinaLeituraInicializacao (tArquivoInicializacao arquivo,
     printf("ERRO: O diretorio de arquivos de configuracao nao foi informado.\n");
     exit(1);
   }
-  arquivo = PegaArgvERetornaCaminho(argv[1]); 
+  arquivo = PegaArgvERetornaCaminho(argv[1]);
   arquivo = LeituraDeArquivo(arquivo, nome_arquivo);
   return arquivo;
 }
@@ -706,10 +747,11 @@ tArquivoInicializacao LeituraDeArquivo (tArquivoInicializacao arquivoInic, char 
         if(fscanf(arquivo, "%[^\n]%*c", arquivoInic.conteudo[i])==1) {
           i++;
           arquivoInic.qtdLinhas++;
-        }else {
-          printf("ERRO: O arquivo (%s) foi aberto mas nao foi possivel ler seu conteudo.\n", caminhoEntrada);
-          exit(1);
         }
+        // else {
+        //   printf("ERRO: O arquivo (%s) foi aberto mas nao foi possivel ler seu conteudo.\n", caminhoEntrada);
+        //   exit(1);
+        // }
       }else break;
     }
   }
@@ -722,7 +764,7 @@ tArquivoInicializacao PegaArgvERetornaCaminho (char *argv) {
   tArquivoInicializacao arquivo;
   sprintf(arquivo.diretorioEntrada, "%s", argv);
   sprintf(arquivo.diretorioSaida, "%s/saida", argv);
-  
+
   return arquivo;
 }
 
@@ -752,7 +794,7 @@ tNavio LeNavio (char *conteudoArq) {
   int i, numAux;
   i=0;
   numAux=0;
-  
+
   while(1) {
     navio.nome[i] = conteudoArq[i];
     i++;
@@ -986,7 +1028,7 @@ int RetornaTipoDeNavio (tNavio navio) {
 
 tNavio AtribuiTamanhoNavio (tNavio navio) {
   if(strcmp(navio.nome, "Carrier")==0){
-    navio.tamanho = 5; 
+    navio.tamanho = 5;
   }else if(strcmp(navio.nome, "Battleship")==0){
     navio.tamanho = 4;
   }else if(strcmp(navio.nome, "Cruiser")==0){
@@ -1012,7 +1054,7 @@ tTabuleiro AdicionaQtdNavios (tTabuleiro tabuleiro) {
 }
 
 int VerificaDisponibilidadeDeCasas (tTabuleiro tabuleiro, tNavio navio) {
-  int x=0, y=0, k=0;  
+  int x=0, y=0, k=0;
 
   if(navio.orientacao == 1) { // horizontal
     y = navio.posicaoY-1;
@@ -1327,8 +1369,8 @@ int VerificaCompatibilidadeTabuleiros (tTabuleiro tabu1, tTabuleiro tabu2) {
   && tabu1.qtdNaviosCarrier == tabu2.qtdNaviosCarrier
   && tabu1.qtdNaviosBattleship == tabu2.qtdNaviosBattleship
   && tabu1.qtdNaviosCruiser == tabu2.qtdNaviosCruiser
-  && tabu1.qtdNaviosDestroyer == tabu2.qtdNaviosDestroyer 
-  && tabu1.qtdNaviosTotal == tabu2.qtdNaviosTotal 
+  && tabu1.qtdNaviosDestroyer == tabu2.qtdNaviosDestroyer
+  && tabu1.qtdNaviosTotal == tabu2.qtdNaviosTotal
   && tabu1.qtdNaviosTotal>0 && tabu2.qtdNaviosTotal>0) {
     return 1;
   }else {
